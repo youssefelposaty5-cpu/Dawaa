@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dawaa POS — v4</title>
+
+  <!-- Arabic Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <!-- SheetJS for XLSX export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-theme="light">
+
+  <!-- Topbar -->
+  <header class="topbar glass">
+    <div class="brand">
+      <i class="fa-solid fa-prescription-bottle-medical logo" aria-hidden="true"></i>
+      <div class="title">Dawaa POS</div>
+    </div>
+
+    <div class="top-actions">
+      <button id="themeToggle" class="chip" title="تبديل الوضع" aria-label="Toggle theme">
+        <i class="fa-solid fa-moon"></i>
+      </button>
+      <button class="chip navlink" data-target="cashierView"><i class="fa-solid fa-cash-register"></i> الكاشير</button>
+      <button class="chip navlink" data-target="returnsView"><i class="fa-solid fa-rotate-left"></i> المرتجعات</button>
+      <button class="chip navlink" data-target="historyView"><i class="fa-regular fa-clock"></i> السجل</button>
+      <button id="logoutBtn" class="chip danger"><i class="fa-solid fa-right-from-bracket"></i> خروج</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- LOGIN -->
+    <section id="loginView" class="card glass auth-card hidden reveal">
+      <h1 class="title">تسجيل الدخول</h1>
+      <form id="loginForm" class="grid">
+        <label>اسم المستخدم</label>
+        <input type="text" id="loginUsername" required />
+        <label>كلمة المرور</label>
+        <input type="password" id="loginPassword" required />
+        <button type="submit" class="btn primary">تسجيل الدخول</button>
+        <p id="loginError" class="error hidden">اسم المستخدم أو كلمة المرور غير صحيحة</p>
+      </form>
+    </section>
+
+    <!-- CASHIER -->
+    <section id="cashierView" class="hidden">
+      <h2 class="section-title reveal">الكاشير</h2>
+
+      <div id="shiftLockedBanner" class="banner warn hidden reveal">
+        <i class="fa-solid fa-lock"></i> الشيفت مقفول - لا يمكن إضافة فواتير جديدة
+      </div>
+
+      <section class="card glass reveal" id="addProductCard">
+        <div class="card-head">
+          <h3><i class="fa-solid fa-cart-plus"></i> إضافة منتج</h3>
+        </div>
+        <form id="addProductForm" class="grid-4">
+          <div>
+            <label>اسم المنتج</label>
+            <input type="text" id="productName" required />
+          </div>
+          <div>
+            <label>السعر</label>
+            <input type="number" id="productPrice" step="0.01" required />
+          </div>
+          <div>
+            <label>الكمية</label>
+            <input type="number" id="productQty" value="1" min="1" required />
+          </div>
+          <div class="end">
+            <button type="submit" class="btn primary">إضافة للسلة</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card glass reveal">
+        <div class="card-head">
+          <h3><i class="fa-solid fa-basket-shopping"></i> السلة</h3>
+        </div>
+        <div class="table-wrap soft-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>اسم المنتج</th>
+                <th>السعر</th>
+                <th>الكمية</th>
+                <th>الإجمالي</th>
+                <th>حذف</th>
+              </tr>
+            </thead>
+            <tbody id="cartTable">
+              <tr><td colspan="5" class="empty">السلة فارغة</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="total">
+          <span>المجموع الكلي: </span>
+          <span id="cartTotal">0.00</span>
+          <span> جنيه</span>
+        </div>
+      </section>
+
+      <section class="card glass reveal" id="completeCard">
+        <div class="card-head">
+          <h3><i class="fa-solid fa-credit-card"></i> إتمام البيع</h3>
+        </div>
+        <div class="grid-2">
+          <div class="select-wrap">
+            <label>طريقة الدفع</label>
+            <div class="select-shell">
+              <select id="paymentMethod" aria-label="Payment method">
+                <option value="cash">كاش</option>
+                <option value="visa">فيزا</option>
+                <option value="mixed">مختلط</option>
+              </select>
+              <i class="fa-solid fa-chevron-down chevron" aria-hidden="true"></i>
+            </div>
+          </div>
+          <div id="cashField" class="hidden">
+            <label>المبلغ الكاش</label>
+            <input type="number" id="cashAmount" step="0.01" />
+          </div>
+          <div id="visaField" class="hidden">
+            <label>المبلغ الفيزا</label>
+            <input type="number" id="visaAmount" step="0.01" />
+          </div>
+          <div id="paidField">
+            <label>المبلغ المدفوع</label>
+            <input type="number" id="paidAmount" step="0.01" />
+          </div>
+          <div>
+            <label>الباقي</label>
+            <input type="number" id="changeAmount" readonly />
+          </div>
+        </div>
+        <button id="completeSale" class="btn success wide">إتمام البيع</button>
+      </section>
+
+      <section class="card glass reveal">
+        <div class="card-head spread">
+          <h3 class="big"><i class="fa-solid fa-gauge"></i> شيفت اليوم</h3>
+          <div class="actions">
+            <button id="lockShift" class="btn ghost"><i class="fa-solid fa-lock"></i> قفل الشيفت</button>
+            <button id="unlockShift" class="btn ghost hidden"><i class="fa-solid fa-unlock"></i> فتح الشيفت</button>
+            <button id="exportToday" class="btn primary"><i class="fa-solid fa-file-export"></i> تصدير اليوم (XLSX)</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat blue">
+            <div>إجمالي الفواتير</div>
+            <div class="num" id="sumTotalInvoices">0</div>
+            <div class="sub"><span>بيع: </span><span id="sumSalesCount">0</span> | <span>مرتجع: </span><span id="sumReturnCount">0</span></div>
+          </div>
+          <div class="stat green">
+            <div>إجمالي الكاش</div>
+            <div class="num" id="sumCash">0.00</div>
+          </div>
+          <div class="stat purple">
+            <div>إجمالي الفيزا</div>
+            <div class="num" id="sumVisa">0.00</div>
+          </div>
+          <div class="stat yellow">
+            <div>إجمالي المرتجعات</div>
+            <div class="num" id="sumReturns">0.00</div>
+          </div>
+          <div class="stat indigo">
+            <div>الصافي</div>
+            <div class="num" id="sumNet">0.00</div>
+          </div>
+          <div class="stat teal">
+            <div>المبلغ في الدرج</div>
+            <div class="num" id="sumDrawer">250.00</div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- RETURNS -->
+    <section id="returnsView" class="hidden">
+      <div class="spread-head reveal">
+        <h2 class="section-title"><i class="fa-solid fa-rotate-left"></i> المرتجعات</h2>
+        <button id="addReturnBtn" class="btn primary"><i class="fa-solid fa-plus"></i> إضافة مرتجع</button>
+      </div>
+
+      <section class="card glass reveal">
+        <div class="card-head">
+          <h3>قائمة المرتجعات (اليوم)</h3>
+        </div>
+        <div class="table-wrap soft-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>الوقت</th>
+                <th>المنتجات</th>
+                <th>المبلغ</th>
+                <th>النوع</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="returnsTable">
+              <tr><td colspan="5" class="empty">لا توجد مرتجعات</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Return Modal (reused same structure as add in earlier versions) -->
+      <div id="returnModal" class="modal hidden" aria-modal="true" role="dialog">
+        <div class="modal-card glass">
+          <div class="modal-head">
+            <h3><i class="fa-solid fa-rotate-left"></i> إضافة / تعديل مرتجع</h3>
+            <button class="icon close" data-close="returnModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <form id="returnForm" class="grid">
+            <input type="hidden" id="returnEditId" value="" />
+            <label>اسم المنتج</label>
+            <input type="text" id="returnName" required />
+            <label>السعر</label>
+            <input type="number" id="returnPrice" step="0.01" required />
+            <label>الكمية</label>
+            <input type="number" id="returnQty" min="1" value="1" required />
+
+            <div class="select-wrap">
+              <label>طريقة الدفع</label>
+              <div class="select-shell">
+                <select id="returnPayment">
+                  <option value="cash">كاش</option>
+                  <option value="visa">فيزا</option>
+                  <option value="mixed">مختلط</option>
+                </select>
+                <i class="fa-solid fa-chevron-down chevron" aria-hidden="true"></i>
+              </div>
+            </div>
+
+            <div id="returnCashField" class="hidden">
+              <label>المبلغ الكاش</label>
+              <input type="number" id="returnCashAmount" step="0.01" />
+            </div>
+            <div id="returnVisaField" class="hidden">
+              <label>المبلغ الفيزا</label>
+              <input type="number" id="returnVisaAmount" step="0.01" />
+            </div>
+
+            <label>النوع</label>
+            <select id="returnType">
+              <option value="return">مرتجع</option>
+              <option value="exchange">استبدال</option>
+            </select>
+
+            <div class="grid-2">
+              <button type="submit" class="btn success"><i class="fa-solid fa-check"></i> حفظ</button>
+              <button type="button" class="btn ghost" data-close="returnModal"><i class="fa-solid fa-xmark"></i> إلغاء</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="historyView" class="hidden">
+      <div class="spread-head reveal">
+        <h2 class="section-title"><i class="fa-regular fa-clock"></i> السجل</h2>
+        <div class="actions">
+          <button id="exportAll" class="btn primary"><i class="fa-solid fa-file-export"></i> تصدير الكل (XLSX)</button>
+        </div>
+      </div>
+
+      <div id="daysContainer" class="stack reveal"></div>
+
+      <!-- Day Modal -->
+      <div id="dayModal" class="modal hidden" aria-modal="true" role="dialog">
+        <div class="modal-card wide glass">
+          <div class="modal-head">
+            <h3 id="dayModalTitle">فواتير اليوم</h3>
+            <button class="icon close" data-close="dayModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div id="dayModalContent" class="soft-scroll"></div>
+        </div>
+      </div>
+
+      <!-- Edit Invoice Modal -->
+      <div id="editInvoiceModal" class="modal hidden" aria-modal="true" role="dialog">
+        <div class="modal-card wide glass">
+          <div class="modal-head">
+            <h3><i class="fa-regular fa-pen-to-square"></i> تعديل الفاتورة</h3>
+            <button class="icon close" data-close="editInvoiceModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <input type="hidden" id="editInvoiceId" />
+          <input type="hidden" id="editInvoiceDate" />
+
+          <div class="card soft">
+            <h4>المنتجات</h4>
+            <div id="editItemsContainer" class="stack"></div>
+            <button id="addEditItem" class="btn ghost"><i class="fa-solid fa-plus"></i> إضافة منتج</button>
+          </div>
+
+          <div class="meta">
+            <div class="total-line">المجموع الكلي: <span id="editTotal">0.00</span> جنيه</div>
+          </div>
+
+          <div class="grid-2">
+            <div class="select-wrap">
+              <label>طريقة الدفع</label>
+              <div class="select-shell">
+                <select id="editPaymentMethod">
+                  <option value="cash">كاش</option>
+                  <option value="visa">فيزا</option>
+                  <option value="mixed">مختلط</option>
+                </select>
+                <i class="fa-solid fa-chevron-down chevron" aria-hidden="true"></i>
+              </div>
+            </div>
+            <div id="editCashField" class="hidden">
+              <label>المبلغ الكاش</label>
+              <input type="number" id="editCashAmount" step="0.01" />
+            </div>
+            <div id="editVisaField" class="hidden">
+              <label>المبلغ الفيزا</label>
+              <input type="number" id="editVisaAmount" step="0.01" />
+            </div>
+            <div id="editPaidField">
+              <label>المبلغ المدفوع</label>
+              <input type="number" id="editPaidAmount" step="0.01" />
+            </div>
+            <div>
+              <label>الباقي</label>
+              <input type="number" id="editChange" readonly />
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <button id="saveEditInvoice" class="btn success"><i class="fa-solid fa-floppy-disk"></i> حفظ</button>
+            <button class="btn ghost" data-close="editInvoiceModal"><i class="fa-solid fa-xmark"></i> إلغاء</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
