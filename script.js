@@ -59,7 +59,7 @@ function calculateDayTotals(dayData){
   const retCash   = inv.filter(i=> i.is_return).reduce((s,i)=>s+(i.cash||0),0);
   const retVisa   = inv.filter(i=> i.is_return).reduce((s,i)=>s+(i.visa||0),0);
   const returns   = retCash + retVisa;
-  let net = (sumCash + sumVisa) - returns; if (net<0) net=0;
+  let net = sumCash - retCash; if (net<0) net=0;  // Only consider cash transactions for net
   let drawer = (sumCash - retCash) + PETTY_CASH; if (drawer < PETTY_CASH) drawer = PETTY_CASH;
 
   const total_invoices = inv.length;
@@ -470,6 +470,8 @@ window.viewDay = function(day){
         <button class="btn primary" onclick='printInvoice(${JSON.stringify(inv)})'><i class="fa-solid fa-print"></i> طباعة</button>
         <button class="btn ghost" onclick="openEdit('${inv.id}','${day}')"><i class="fa-regular fa-pen-to-square"></i> تعديل</button>
         <button class="btn danger" onclick="deleteInvoice('${inv.id}','${day}')"><i class="fa-solid fa-trash"></i> حذف</button>
+        <button class="btn ghost order-btn" onclick="moveInvoice('${inv.id}','${day}','up')"><i class="fa-solid fa-arrow-up"></i></button>
+        <button class="btn ghost order-btn" onclick="moveInvoice('${inv.id}','${day}','down')"><i class="fa-solid fa-arrow-down"></i></button>
       </td>
     </tr>
   `).join("");
@@ -662,6 +664,24 @@ function closeModal(id){
 document.addEventListener("click",(e)=>{
   const target = e.target.dataset?.close; if (target) closeModal(target);
 });
+
+/*********** Invoice Order Management ***********/
+window.moveInvoice = function(id, day, direction) {
+  const data = loadData();
+  const dayData = data.days[day];
+  const index = dayData.invoices.findIndex(inv => inv.id === id);
+  if (index === -1) return;
+  
+  const newIndex = direction === 'up' ? index - 1 : index + 1;
+  if (newIndex < 0 || newIndex >= dayData.invoices.length) return;
+  
+  // Swap invoices
+  [dayData.invoices[index], dayData.invoices[newIndex]] = [dayData.invoices[newIndex], dayData.invoices[index]];
+  
+  // Save order and refresh
+  saveData(data);
+  viewDay(day);
+}
 
 /*********** Boot ***********/
 document.addEventListener("DOMContentLoaded", ()=>{ requireLoginView(); refreshCashierView(); });
